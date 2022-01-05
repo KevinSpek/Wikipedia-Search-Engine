@@ -17,157 +17,169 @@ singleton = lambda c: c()
 class Backend:
     
     def __init__(self):
-        self.body_index = pickle.load(open("data/postings_body_index.pkl", "rb"))
-        self.title_index = pickle.load(open("data/postings_title_index.pkl", "rb"))
+        self.body_index = pickle.load(open("body_index.pkl", "rb"))
+        self.title_index = pickle.load(open("title_index.pkl", "rb"))
+        self.anchor_index = pickle.load(open("anchor_index.pkl", "rb"))
+
+
+
         self.page_rank =  pd.read_csv(gzip.open('data/page_rank.csv.gz', 'rb'))
+
+
         self.N = len(self.page_rank)
 
-    def get_candidate_documents_and_scores(self, query_to_search,index,words,pls):
-        """
-        Generate a dictionary representing a pool of candidate documents for a given query. This function will go through every token in query_to_search
-        and fetch the corresponding information (e.g., term frequency, document frequency, etc.') needed to calculate TF-IDF from the posting list.
-        Then it will populate the dictionary 'candidates.'
-        For calculation of IDF, use log with base 10.
-        tf will be normalized based on the length of the document.
+    def relevent_docs(self, query_tokens, index, file_loc):
         
-        Parameters:
-        -----------
-        query_to_search: list of tokens (str). This list will be preprocessed in advance (e.g., lower case, filtering stopwords, etc.'). 
-                        Example: 'Hello, I love information retrival' --->  ['hello','love','information','retrieval']
+        
+        relev_docs = defaultdict(list)
+        doc_size = defaultdict(int)
+        for w, posting_list in index.posting_lists_iter(file_loc, query_tokens):
+            posting_list = sorted(posting_list, key=lambda x: x[0], reverse=True)
+            for doc, freq in posting_list:
+                relev_docs[doc].append((w, freq))
+                doc_size[doc] += freq
+        return relev_docs
 
-        index:           inverted index loaded from the corresponding files.
 
-        words,pls: generator for working with posting.
-        Returns:
-        -----------
-        dictionary of candidates. In the following format:
-                                                                key: pair (doc_id,term)
-                                                                value: tfidf score. 
-        """
-        candidates = {}
-                
-        for term in np.unique(query_to_search):        
-            if term in words:            
-                list_of_doc = pls[words.index(term)]                        
-                normlized_tfidf = [(doc_id,(freq/DL[str(doc_id)])*math.log(self.N/index.df[term],10)) for doc_id, freq in list_of_doc]           
-                            
-                for doc_id, tfidf in normlized_tfidf:
-                    candidates[(doc_id,term)] = candidates.get((doc_id,term), 0) + tfidf               
+
+    def cosine_similarity(self, query_tokens,index, tfidf, file_loc):
+        relev_docs = self.relevent_docs(query_tokens, index, file_loc)
+        docs = []
+        res = {}#[]
+        for doc, freqs in relev_docs.items():
             
-        return candidates
+            total = 0
+            total_freq = 0
+            for w, freq in freqs:
+                total += (freq / ((1+ len(query_tokens)) - len(freqs)))*tfidf[w]
+                total_freq += freq
+            
+            total *= (total_freq / index.DL[doc])
+            
+
+            # res[doc].append((doc,total))
+            res[doc] = total
+            docs.append(doc)
+        # res = sorted(res, key=lambda x: x[1], reverse=True)
+
+        return res, docs#[x[0] for x in res]
+
+
+            
+           
+
+        
+        
+        # cosine = {}
+        # doc_id = 0
+
+        # for index, doc in D.iterrows():
+        
+        #     top = np.dot(doc, Q)
+        #     bottom1 = np.sqrt(np.dot(doc, doc))
+        #     bottom2 = np.sqrt(np.dot(Q, Q))
+            
+        #     cos_sim =top/(bottom1*bottom2)
+        #     cosine[doc_id] = cos_sim
+
+        #     doc_id += 1
+        # return cosine
+
+        
+            
+
+
+
+
+    
+
+
+
+    # def get_candidate_documents_and_scores(self, query_to_search,index,pls):
+    #     candidates = {}       
+    #     for term in np.unique(query_to_search):        
+        
+    #         list_of_doc = pls[term]                        
+    #         normlized_tfidf = [(doc_id,(freq/index.DL[doc_id])*math.log(self.N/index.df[term],10)) for doc_id, freq in list_of_doc]           
+                        
+    #         for doc_id, tfidf in normlized_tfidf:
+    #             candidates[(doc_id,term)] = candidates.get((doc_id,term), 0) + tfidf               
+    #     return candidates
      
 
-
-    def generate_document_tfidf_matrix(self, query_to_search,index,words,pls):
-        """
-        Generate a DataFrame `D` of tfidf scores for a given query. 
-        Rows will be the documents candidates for a given query
-        Columns will be the unique terms in the index.
-        The value for a given document and term will be its tfidf score.
+    
+    # def generate_document_tfidf_matrix(self, query_to_search,index,words,pls):
+    #     total_vocab_size = len(index.term_total)
+    #     candidates_scores = self.get_candidate_documents_and_scores(query_to_search,index,words,pls)
+    #     unique_candidates = np.unique([doc_id for doc_id, freq in candidates_scores.keys()])
+    #     D = np.zeros((len(unique_candidates), total_vocab_size))
+    #     D = pd.DataFrame(D)
         
-        Parameters:
-        -----------
-        query_to_search: list of tokens (str). This list will be preprocessed in advance (e.g., lower case, filtering stopwords, etc.'). 
-                        Example: 'Hello, I love information retrival' --->  ['hello','love','information','retrieval']
+    #     D.index = unique_candidates
+    #     D.columns = index.term_total.keys()
 
-        index:           inverted index loaded from the corresponding files.
+    #     for key in candidates_scores:
+    #         tfidf = candidates_scores[key]
+    #         doc_id, term = key    
+    #         D.loc[doc_id][term] = tfidf
+    #     return D 
 
-        words,pls: generator for working with posting.
-        Returns:
-        -----------
-        DataFrame of tfidf scores.
-        """
-        
-        total_vocab_size = len(index.term_total)
-        candidates_scores = self.get_candidate_documents_and_scores(query_to_search,index,words,pls) #We do not need to utilize all document. Only the docuemnts which have corrspoinding terms with the query.
-        unique_candidates = np.unique([doc_id for doc_id, freq in candidates_scores.keys()])
-        D = np.zeros((len(unique_candidates), total_vocab_size))
-        D = pd.DataFrame(D)
-        
-        D.index = unique_candidates
-        D.columns = index.term_total.keys()
-
-        for key in candidates_scores:
-            tfidf = candidates_scores[key]
-            doc_id, term = key    
-            D.loc[doc_id][term] = tfidf
-
-        return D 
-
-    def tf_idf(self, posting_list, doc_tfidf):
+    def tf_idf(self, posting_list):
         tf = 0
-        
+
         for doc_id, freq in posting_list:
             tf += freq
-            doc_tfidf[doc_id] += freq
 
         idf = math.log(self.N/len(posting_list), 10)
         return tf*idf
 
 
-    def cosine_similarity(D,Q):
-        """
-        Calculate the cosine similarity for each candidate document in D and a given query (e.g., Q).
-        Generate a dictionary of cosine similarity scores 
-        key: doc_id
-        value: cosine similarity score
-        
-        Parameters:
-        -----------
-        D: DataFrame of tfidf scores.
+    # def cosine_similarity(D,Q):
+    #     # YOUR CODE HERE
+    #     cosine = {}
+    #     doc_id = 0
 
-        Q: vectorized query with tfidf scores
+    #     for row, doc in D.iterrows():
         
-        Returns:
-        -----------
-        dictionary of cosine similarity score as follows:
-                                                                    key: document id (e.g., doc_id)
-                                                                    value: cosine similarty score.
-        """
-        # YOUR CODE HERE
-        cosine = {}
-        doc_id = 0
-
-        for row, doc in D.iterrows():
-        
-            top = np.dot(doc, Q)
-            bottom1 = np.sqrt(np.dot(doc, doc))
-            bottom2 = np.sqrt(np.dot(Q, Q))
+    #         top = np.dot(doc, Q)
+    #         bottom1 = np.sqrt(np.dot(doc, doc))
+    #         bottom2 = np.sqrt(np.dot(Q, Q))
             
-            cos_sim =top/(bottom1*bottom2)
-            cosine[doc_id] = cos_sim
+    #         cos_sim =top/(bottom1*bottom2)
+    #         cosine[doc_id] = cos_sim
 
-            doc_id += 1
-        return cosine
+    #         doc_id += 1
+    #     return cosine
             
 
     def body_cosine_tfidf(self, tokens):
         
-       
-       
-        # self.body_index.posting_locs.items()
-        # print(self.body_index.posting_locs.items())
-        # print(self.body_index.posting_locs.items())
-       
-        doc_tfidf = defaultdict(int)
-        query_tfidf = {"tfidf": [], "word": []}
+        
+        query_tfidf = {}
         for w, posting_list in self.body_index.posting_lists_iter("postings_body", tokens):
-            query_tfidf["tfidf"].append(round(self.tf_idf(posting_list), 5))
-            query_tfidf["word"].append(w)
+            query_tfidf[w] = round(self.tf_idf(posting_list), 5)
         
-        doc_tfidf 
-        df_tfidf = pd.DataFrame(query_tfidf)
-        print(df_tfidf)
         
+        cosine_sim_body, body_docs = self.cosine_similarity(tokens, self.body_index, query_tfidf, "postings_body")
+        cosine_sim_title, title_docs = self.cosine_similarity(tokens, self.title_index, query_tfidf, "postings_title")
 
-    
+
+        doc_set = set(body_docs + title_docs)
+
+        res = []
+        for doc in doc_set:
+            if doc not in cosine_sim_title:
+                total_sim = cosine_sim_body[doc]*0.9
+            elif doc not in cosine_sim_body:
+                total_sim = cosine_sim_title[doc]*0.85
+            else:
+                total_sim = cosine_sim_title[doc]*0.7  * cosine_sim_body[doc]*0.3
+            res.append((doc, total_sim))
+        
+        res = sorted(res, key=lambda x: x[1], reverse=True)
+        res = [x[0] for x in res][:100]
+        print(res)
+
             
-
-        
-
-
-            
-        
-            
-# tokens = ["information", "retrieval"]
+# tokens = ["python"]
 # Backend.body_cosine_tfidf(tokens)
