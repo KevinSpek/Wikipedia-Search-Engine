@@ -20,9 +20,9 @@ class MultiFileReader:
         b = []
         for f_name, offset in locs:
             if f_name not in self._open_files:
-                self._open_files[f_name] = open(f"buckets/{folder_name}/postings_gcp/{f_name}", "rb")
+                # self._open_files[f_name] = open(f"buckets/{folder_name}/postings_gcp/{f_name}", "rb")
 
-                # self._open_files[f_name] = io.BytesIO(bucket.get_blob(f"{folder_name}/postings_gcp/{f_name}").download_as_string())
+                self._open_files[f_name] = io.BytesIO(bucket.get_blob(f"{folder_name}/postings_gcp/{f_name}").download_as_string())
                 
             f = self._open_files[f_name]
             
@@ -50,13 +50,7 @@ class InvertedIndex:
         """
         pass
 
-    def __getstate__(self):
-        """ Modify how the object is pickled by removing the internal posting lists
-            from the object's state dictionary. 
-        """
-        state = self.__dict__.copy()
-        del state['_posting_list']
-        return state
+
 
     def posting_lists_iter(self, folder_name, tokens = None):
         """ A generator that reads one posting list from disk and yields 
