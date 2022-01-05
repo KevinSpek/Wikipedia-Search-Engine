@@ -1,13 +1,24 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonif
+
+
+
+from search_backend import Backend
 
 class MyFlaskApp(Flask):
+
+
+        
+
     def run(self, host=None, port=None, debug=None, **options):
+
         super(MyFlaskApp, self).run(host=host, port=port, debug=debug, **options)
 
 app = MyFlaskApp(__name__)
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
 
+
+backend = Backend()
 @app.route("/search")
 def search():
     ''' Returns up to a 100 of your best search results for the query. This is 
@@ -31,6 +42,8 @@ def search():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
+    
+
 
     # END SOLUTION
     return jsonify(res)
@@ -57,6 +70,9 @@ def search_body():
       return jsonify(res)
     # BEGIN SOLUTION
 
+    res = backend.get_body(query)
+    res = sorted(res.items(), key= lambda x:x[1], reverse=True)
+    res = [doc for doc, _ in res][:100]
     # END SOLUTION
     return jsonify(res)
 
@@ -82,7 +98,7 @@ def search_title():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-
+    backend.get_title(query)
     # END SOLUTION
     return jsonify(res)
 
@@ -109,7 +125,7 @@ def search_anchor():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    
+    backend.get_anchor(query)
     # END SOLUTION
     return jsonify(res)
 
@@ -134,7 +150,8 @@ def get_pagerank():
     if len(wiki_ids) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-
+    
+    res = backend.get_page_rank(wiki_ids)
     # END SOLUTION
     return jsonify(res)
 
@@ -161,6 +178,7 @@ def get_pageview():
     if len(wiki_ids) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
+    res = backend.get_page_views(wiki_ids)
 
     # END SOLUTION
     return jsonify(res)
@@ -169,3 +187,5 @@ def get_pageview():
 if __name__ == '__main__':
     # run the Flask RESTful API, make the server publicly available (host='0.0.0.0') on port 8080
     app.run(host='0.0.0.0', port=8080, debug=True)
+    # app.run(host='127.0.0.0', port=8080, debug=True)
+

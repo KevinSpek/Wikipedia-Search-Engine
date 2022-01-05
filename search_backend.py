@@ -11,25 +11,31 @@ import math
 
 from inverted_index_gcp import TF_MASK
 
-singleton = lambda c: c()
 
-@singleton
+
+
 class Backend:
     
     def __init__(self):
         self.body_index = pickle.load(open("body_index.pkl", "rb"))
         self.title_index = pickle.load(open("title_index.pkl", "rb"))
         self.anchor_index = pickle.load(open("anchor_index.pkl", "rb"))
-
-
-
         self.page_rank =  pd.read_csv(gzip.open('data/page_rank.csv.gz', 'rb'))
+        self.page_view = pickle.load(open('page_view.pkl', 'rb'))
 
 
+        view_max = sorted(self.page_view.values(), reverse=True)[3]
+    
+        self.norm_page_view = {}
+        for key, value_list in self.page_view.items():
+            self.norm_page_view[key] = value_list/view_max
+        
         self.N = len(self.page_rank)
 
+
+    
+
     def relevent_docs(self, query_tokens, index, file_loc):
-        
         
         relev_docs = defaultdict(list)
         doc_size = defaultdict(int)
@@ -55,6 +61,8 @@ class Backend:
                 total_freq += freq
             
             total *= (total_freq / index.DL[doc])
+
+
             
 
             # res[doc].append((doc,total))
@@ -62,67 +70,66 @@ class Backend:
             docs.append(doc)
         # res = sorted(res, key=lambda x: x[1], reverse=True)
 
-        return res, docs#[x[0] for x in res]
+        ## change to more efficent and fast way if needed
+        max_val = max(res, key=res.get)
+        new_res = {}
+        for key, value_list in res.items():
+            new_res[key] = value_list/max_val
+        return new_res
 
 
-            
-           
-
+    def get_body(self, query):
+        query_tfidf = {}
+        for w, posting_list in self.body_index.posting_lists_iter("postings_body", query):
+            query_tfidf[w] = round(self.tf_idf(posting_list), 5)
         
         
-        # cosine = {}
-        # doc_id = 0
+        cosine_sim_body = self.cosine_similarity(query, self.body_index, query_tfidf, "postings_body")
 
-        # for index, doc in D.iterrows():
+        return cosine_sim_body
+
+
+
+    def get_kind(self, query, index, folder_name):
+        res = defaultdict(list)
+        for w, posting_list in index.posting_lists_iter(folder_name, query):
+            for doc, freq in posting_list:
+                res[doc].append((w, freq))
+        new_res = {}
+        for doc, words in res.items():
+            new_res[doc] = (len(words), sum([freq for word, freq in words]))
         
-        #     top = np.dot(doc, Q)
-        #     bottom1 = np.sqrt(np.dot(doc, doc))
-        #     bottom2 = np.sqrt(np.dot(Q, Q))
-            
-        #     cos_sim =top/(bottom1*bottom2)
-        #     cosine[doc_id] = cos_sim
+        return new_res
 
-        #     doc_id += 1
-        # return cosine
-
-        
-            
+    def get_page_kind(self, doc_ids,page):
+        res = []
+        for doc_id in doc_ids:
+            res.append(page[doc_id])
+        return res
 
 
+    def get_title(self, query):
+
+        res = self.get_kind(query, self.title_index, "postings_title")
+        res = sorted(res.items(), key = lambda x: x[1], reverse=True)
+        return [x for x, y in res]
+
+    def get_anchor(self, query):
+        res = self.get_kind(query, self.anchor_index, "postings_anchor")
+        res = sorted(res.items(), key = lambda x: x[1], reverse=True)
+        return [x for x, y in res]
+       
 
 
-    
+
+    def get_page_rank(self, doc_ids):
+        return self.get_page_kind(doc_ids, self.page_rank)
+
+    def get_page_views(self, doc_ids):
+        return self.get_page_kind(doc_ids, self.page_view)
 
 
 
-    # def get_candidate_documents_and_scores(self, query_to_search,index,pls):
-    #     candidates = {}       
-    #     for term in np.unique(query_to_search):        
-        
-    #         list_of_doc = pls[term]                        
-    #         normlized_tfidf = [(doc_id,(freq/index.DL[doc_id])*math.log(self.N/index.df[term],10)) for doc_id, freq in list_of_doc]           
-                        
-    #         for doc_id, tfidf in normlized_tfidf:
-    #             candidates[(doc_id,term)] = candidates.get((doc_id,term), 0) + tfidf               
-    #     return candidates
-     
-
-    
-    # def generate_document_tfidf_matrix(self, query_to_search,index,words,pls):
-    #     total_vocab_size = len(index.term_total)
-    #     candidates_scores = self.get_candidate_documents_and_scores(query_to_search,index,words,pls)
-    #     unique_candidates = np.unique([doc_id for doc_id, freq in candidates_scores.keys()])
-    #     D = np.zeros((len(unique_candidates), total_vocab_size))
-    #     D = pd.DataFrame(D)
-        
-    #     D.index = unique_candidates
-    #     D.columns = index.term_total.keys()
-
-    #     for key in candidates_scores:
-    #         tfidf = candidates_scores[key]
-    #         doc_id, term = key    
-    #         D.loc[doc_id][term] = tfidf
-    #     return D 
 
     def tf_idf(self, posting_list):
         tf = 0
@@ -134,52 +141,90 @@ class Backend:
         return tf*idf
 
 
-    # def cosine_similarity(D,Q):
-    #     # YOUR CODE HERE
-    #     cosine = {}
-    #     doc_id = 0
-
-    #     for row, doc in D.iterrows():
-        
-    #         top = np.dot(doc, Q)
-    #         bottom1 = np.sqrt(np.dot(doc, doc))
-    #         bottom2 = np.sqrt(np.dot(Q, Q))
-            
-    #         cos_sim =top/(bottom1*bottom2)
-    #         cosine[doc_id] = cos_sim
-
-    #         doc_id += 1
-    #     return cosine
             
 
-    def body_cosine_tfidf(self, tokens):
+    def search(self, query):
+
         
-        
-        query_tfidf = {}
-        for w, posting_list in self.body_index.posting_lists_iter("postings_body", tokens):
-            query_tfidf[w] = round(self.tf_idf(posting_list), 5)
-        
-        
-        cosine_sim_body, body_docs = self.cosine_similarity(tokens, self.body_index, query_tfidf, "postings_body")
-        cosine_sim_title, title_docs = self.cosine_similarity(tokens, self.title_index, query_tfidf, "postings_title")
+        body = self.get_body(query)
+        body = sorted(body.items(), key=lambda x: x[1], reverse=True)[:1000]
+        print(body)
+        body_docs = [doc for doc, val in body]
 
 
-        doc_set = set(body_docs + title_docs)
+        title = self.get_kind(query, self.title_index, "postings_title")
+        title = sorted(title.items(), key = lambda x: x[1], reverse=True)[:1000]
+        print(title)
+        title_docs = [doc for doc, val in title]
 
-        res = []
-        for doc in doc_set:
-            if doc not in cosine_sim_title:
-                total_sim = cosine_sim_body[doc]*0.9
-            elif doc not in cosine_sim_body:
-                total_sim = cosine_sim_title[doc]*0.85
-            else:
-                total_sim = cosine_sim_title[doc]*0.7  * cosine_sim_body[doc]*0.3
-            res.append((doc, total_sim))
+
+        anchor = self.get_kind(query, self.anchor_index, "postings_anchor")
+        anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:1000]
+        print(anchor)
+        anchor_docs = [doc for doc, val in anchor]
         
-        res = sorted(res, key=lambda x: x[1], reverse=True)
-        res = [x[0] for x in res][:100]
-        print(res)
 
-            
-# tokens = ["python"]
-# Backend.body_cosine_tfidf(tokens)
+
+        docs = set(body_docs + title_docs + anchor_docs)
+        # page_view = self.get_page_views(docs)
+        # page_rank = self.get_page_rank(docs)
+        print(len(docs))
+        
+
+
+
+
+
+
+
+        
+
+        
+        
+        # query_tfidf = {}
+        # for w, posting_list in self.body_index.posting_lists_iter("postings_body", tokens):
+        #     query_tfidf[w] = round(self.tf_idf(posting_list), 5)
+        
+        
+        # cosine_sim_body, body_docs = self.cosine_similarity(tokens, self.body_index, query_tfidf, "postings_body")
+        # cosine_sim_title, title_docs = self.cosine_similarity(tokens, self.title_index, query_tfidf, "postings_title")
+
+
+        # doc_set = set(body_docs + title_docs)
+        # total_sim = 0
+        # count = 0
+        # res = []
+        # for doc in doc_set:
+        #     if doc in self.norm_page_view:
+        #         total_sim += self.norm_page_view[doc]
+        
+        #     if doc not in cosine_sim_title:
+        #         total_sim += cosine_sim_body[doc]*0.6
+        #     elif doc not in cosine_sim_body:
+        #         count += 1
+        #         total_sim += cosine_sim_title[doc]*0.6
+        #     else:
+        #         print(cosine_sim_title[doc], cosine_sim_body[doc], self.norm_page_view[doc])
+        #         total_sim += cosine_sim_title[doc]*0.25  * cosine_sim_body[doc]*0.5
+        #     res.append((doc, total_sim))
+        # print(count)
+  
+        
+        # res = sorted(res, key=lambda x: x[1], reverse=True)
+        # res = [x[0] for x in res][:100]
+        # print(res)
+
+        
+
+# from nltk.corpus import wordnet as wn
+backend = Backend()
+tokens = ["google", "trends"]
+backend.search(tokens)
+
+
+# #Creating a list 
+# synonyms = []
+# for syn in wn.synsets("travel"):
+#     for lm in syn.lemmas():
+#              synonyms.append(lm.name())#adding into synonyms
+# print (set(synonyms))
