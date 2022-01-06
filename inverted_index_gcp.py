@@ -4,6 +4,7 @@ from pathlib import Path
 import pickle
 from google.cloud import storage
 import io
+from nltk.corpus import wordnet as wn
  
 BLOCK_SIZE = 1999998
 
@@ -61,6 +62,18 @@ class InvertedIndex:
             for token in tokens:
                 if token in self.posting_locs:
                     posting_locs.append((token, self.posting_locs[token]))
+                else:
+                    try:
+                        for synset in wn.synsets(str(token)):
+                            for synonym in synset.lemmas():
+                                if synonym in self.posting_locs:
+                                    posting_locs.append((synonym, self.posting_locs[synonym]))
+                    except:
+                        continue
+                            
+                        
+
+
 
             
         else:

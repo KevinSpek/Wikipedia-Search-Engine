@@ -10,8 +10,12 @@ import numpy as np
 import math
 from evaluation import Evaluation
 import json
-
+from nltk.stem import PorterStemmer
+from nltk.corpus import stopwords
+from stop_words import get_stop_words
 from time import time as t
+import re
+
 
 
 
@@ -208,10 +212,24 @@ class Backend:
         return res
 
 
-             
+
+
 
     def preprocess(self, query):
-        return query.split(" ")
+
+        ps = PorterStemmer()
+        english_stopwords = frozenset(stopwords.words('english'))
+        corpus_stopwords = ["category", "references", "also", "external", "links", 
+                            "may", "first", "see", "history", "people", "one", "two", 
+                            "part", "thumb", "including", "second", "following", 
+                            "many", "however", "would", "became", "make"]
+
+        all_stopwords = english_stopwords.union(corpus_stopwords).union(get_stop_words('en'))
+        RE_WORD = re.compile(r"""[\#\@\w](['\-]?\w){2,24}""", re.UNICODE)
+        tokens = [token.group() for token in RE_WORD.finditer(query.lower()) if token.group() not in all_stopwords]
+
+
+        return tokens
 
     def evaluate(self):
         evaluator = Evaluation()
@@ -219,14 +237,17 @@ class Backend:
         predictions = []
         ground_trues = []
         time = []
-        for query, true_label in test_queries.items():
+        for query, true_label in list(test_queries.items())[:10]:
             
             preprocess_query = self.preprocess(query)
             start = t()
+            print(preprocess_query)
             pred = self.search(preprocess_query)
+            print(pred)
             end = t()
             time.append(end-start)
-            
+            print(f"Time: {end-start}")
+            print()
 
             
             predictions.append(pred)
@@ -234,8 +255,8 @@ class Backend:
             
             
 
-        print(evaluator.evaluate(ground_trues, predictions, 100))
-        print(f"avgTIME {np.avg(time)}")
+        print(evaluator.evaluate(ground_trues, predictions, 50))
+        print(f"avgTIME {np.mean(time)}")
 
 
 

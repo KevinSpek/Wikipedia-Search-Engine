@@ -2,6 +2,7 @@
 
 import math
 from tqdm import tqdm
+from time import time as t
 
 class Evaluation:
     def __init__(self):
@@ -99,7 +100,6 @@ class Evaluation:
 
     def evaluate(self, ground_trues,predictions,k,print_scores=True):
 
-
         recall_lst = []
         precision_lst = []
         f_score_lst = []
@@ -112,7 +112,8 @@ class Evaluation:
                     'f_score@k': f_score_lst,
                     'r-precision': r_precision_lst,
                     'MRR@k':reciprocal_rank_lst,
-                    'MAP@k':avg_precision_lst
+                    'MAP@k':avg_precision_lst,
+
                     }
                     # 'ndcg@k':ndcg_lst}
         
