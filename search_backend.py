@@ -8,8 +8,10 @@ import gzip
 import pandas as pd
 import numpy as np
 import math
+from evaluation import Evaluation
+import json
 
-from inverted_index_gcp import TF_MASK
+from time import time as t
 
 
 
@@ -44,29 +46,31 @@ class Backend:
     def relevent_docs(self, query_tokens, index, file_loc):
         
         relev_docs = defaultdict(list)
-        doc_size = defaultdict(int)
+        # doc_size = defaultdict(int)
         for w, posting_list in index.posting_lists_iter(file_loc, query_tokens):
+
             posting_list = sorted(posting_list, key=lambda x: x[0], reverse=True)
             for doc, freq in posting_list:
                 relev_docs[doc].append((w, freq))
-                doc_size[doc] += freq
+                # doc_size[doc] += freq
         return relev_docs
 
 
 
     def cosine_similarity(self, query_tokens,index, tfidf, file_loc):
         relev_docs = self.relevent_docs(query_tokens, index, file_loc)
+        
         docs = []
         res = {}#[]
         for doc, freqs in relev_docs.items():
             
             total = 0
-            total_freq = 0
+            # total_freq = 0
             for w, freq in freqs:
-                total += (freq / ((1+ len(query_tokens)) - len(freqs)))*tfidf[w]
-                total_freq += freq
+                total += (freq / ((1+ len(query_tokens)) - len(freqs)))*(tfidf[w])
+                # total_freq += freq
             
-            total *= (total_freq / index.DL[doc])
+            # total *= (total_freq / index.DL[doc])
 
 
             
@@ -77,17 +81,18 @@ class Backend:
         # res = sorted(res, key=lambda x: x[1], reverse=True)
 
         ## change to more efficent and fast way if needed
-        max_val = max(res, key=res.get)
         new_res = {}
-        for key, value_list in res.items():
-            new_res[key] = value_list/max_val
+        if len(res) > 0:
+            max_val = max(res, key=res.get)
+            for key, value_list in res.items():
+                new_res[key] = value_list/max_val
         return new_res
 
 
     def get_body(self, query):
         query_tfidf = {}
         for w, posting_list in self.body_index.posting_lists_iter("postings_body", query):
-            query_tfidf[w] = round(self.tf_idf(posting_list), 5)
+            query_tfidf[w] = round(self.tf_idf(posting_list, self.body_index.DL), 5)
         
         
         cosine_sim_body = self.cosine_similarity(query, self.body_index, query_tfidf, "postings_body")
@@ -138,11 +143,11 @@ class Backend:
 
 
 
-    def tf_idf(self, posting_list):
+    def tf_idf(self, posting_list, DL):
         tf = 0
 
         for doc_id, freq in posting_list:
-            tf += freq
+            tf += freq/DL[doc_id]
 
         idf = math.log(self.N/len(posting_list), 10)
         return tf*idf
@@ -154,7 +159,7 @@ class Backend:
 
         
         body = self.get_body(query)
-        
+     
 
         size = 100
 
@@ -171,12 +176,17 @@ class Backend:
         anchor_docs = {}
 
         for i in range(size):
-            score = 2 - (i/size)
-            title_docs[title[i]] = score
-            anchor_docs[anchor[i]] = score        
+            
+            if i < len(title):
+                score = 2 - (i/size)
+                title_docs[title[i]] = score
+            if i < len(anchor):
+                score = 2 - (i/size)
+                anchor_docs[anchor[i]] = score       
 
         res = {}
         for doc, score in body.items():
+      
             total_score = score
             if doc in title_docs:
                 total_score *= title_docs[doc]
@@ -193,16 +203,34 @@ class Backend:
 
         res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
         res = [doc for doc, score in res]
-        print(res)
+        return res
 
 
              
 
+    def preprocess(self, query):
+        return query.split(" ")
 
+    def evaluate(self):
+        evaluator = Evaluation()
+        test_queries = json.loads(open("queries_train.json").read())
+        predictions = []
+        ground_trues = []
+        for query, true_label in test_queries.items():
+            
+            preprocess_query = self.preprocess(query)
+            start = t()
+            pred = self.search(preprocess_query)
+            end = t()
+            print(end-start)
 
+            
+            predictions.append(pred)
+            ground_trues.append(true_label)
+            
+            
 
-
-        
+        print(evaluator.evaluate(ground_trues, predictions, 100))
 
 
 
@@ -251,8 +279,8 @@ class Backend:
 
 # from nltk.corpus import wordnet as wn
 backend = Backend()
-tokens = ["python"]
-backend.search(tokens)
+backend.evaluate()
+
 
 
 # #Creating a list 

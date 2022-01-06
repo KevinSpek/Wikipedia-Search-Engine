@@ -57,12 +57,18 @@ class InvertedIndex:
             a (word:str, [(doc_id:int, tf:int), ...]) tuple.
         """
         if tokens is not None:
-            posting_locs = [(token, self.posting_locs[token]) for token in tokens]
+            posting_locs = []
+            for token in tokens:
+                if token in self.posting_locs:
+                    posting_locs.append((token, self.posting_locs[token]))
+
+            
         else:
             posting_locs = self.posting_locs.items()
 
         reader = MultiFileReader()
         for w, locs in posting_locs:
+           
             b = reader.read(locs, folder_name, self.df[w] * TUPLE_SIZE)
             posting_list = []
             for i in range(self.df[w]):
@@ -70,6 +76,7 @@ class InvertedIndex:
                 tf = int.from_bytes(b[i*TUPLE_SIZE+4:(i+1)*TUPLE_SIZE], 'big')
                 posting_list.append((doc_id, tf))
             yield w, posting_list
+      
 
   
 
