@@ -24,12 +24,18 @@ class Backend:
         self.page_view = pickle.load(open('page_view.pkl', 'rb'))
 
 
-        view_max = sorted(self.page_view.values(), reverse=True)[3]
+        view_max = sorted(self.page_view.values(), reverse=True)[0]
     
         self.norm_page_view = {}
         for key, value_list in self.page_view.items():
             self.norm_page_view[key] = value_list/view_max
         
+
+        rank_max = sorted(self.page_view.values(), reverse=True)[0]
+        self.norm_page_rank = {}
+        for key, value_list in self.page_rank.items():
+            self.norm_page_rank[key] = value_list/rank_max
+
         self.N = len(self.page_rank)
 
 
@@ -104,7 +110,8 @@ class Backend:
     def get_page_kind(self, doc_ids,page):
         res = []
         for doc_id in doc_ids:
-            res.append(page[doc_id])
+            try: res.append(page[doc_id])
+            except: print("No such document")
         return res
 
 
@@ -147,28 +154,54 @@ class Backend:
 
         
         body = self.get_body(query)
-        body = sorted(body.items(), key=lambda x: x[1], reverse=True)[:1000]
-        print(body)
-        body_docs = [doc for doc, val in body]
+        
+
+        size = 100
 
 
         title = self.get_kind(query, self.title_index, "postings_title")
-        title = sorted(title.items(), key = lambda x: x[1], reverse=True)[:1000]
-        print(title)
-        title_docs = [doc for doc, val in title]
-
-
-        anchor = self.get_kind(query, self.anchor_index, "postings_anchor")
-        anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:1000]
-        print(anchor)
-        anchor_docs = [doc for doc, val in anchor]
+        title = sorted(title.items(), key = lambda x: x[1], reverse=True)[:size]
         
 
 
-        docs = set(body_docs + title_docs + anchor_docs)
-        # page_view = self.get_page_views(docs)
-        # page_rank = self.get_page_rank(docs)
-        print(len(docs))
+        anchor = self.get_kind(query, self.anchor_index, "postings_anchor")
+        anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:size]
+
+        title_docs = {}
+        anchor_docs = {}
+
+        for i in range(size):
+            score = 2 - (i/size)
+            title_docs[title[i]] = score
+            anchor_docs[anchor[i]] = score        
+
+        res = {}
+        for doc, score in body.items():
+            total_score = score
+            if doc in title_docs:
+                total_score *= title_docs[doc]
+
+            if doc in anchor_docs:
+                total_score *= anchor_docs[doc]
+
+            if doc in self.norm_page_view:
+                total_score *= (self.norm_page_view[doc]+1)
+            
+            if doc in self.norm_page_rank:
+                total_score *= (self.norm_page_rank[doc]+1)
+            res[doc] = total_score
+
+        res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
+        res = [doc for doc, score in res]
+        print(res)
+
+
+             
+
+
+
+
+
         
 
 
@@ -218,7 +251,7 @@ class Backend:
 
 # from nltk.corpus import wordnet as wn
 backend = Backend()
-tokens = ["google", "trends"]
+tokens = ["python"]
 backend.search(tokens)
 
 
