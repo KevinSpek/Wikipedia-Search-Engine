@@ -161,13 +161,12 @@ class Backend:
         body = self.get_body(query)
      
 
-        size = 100
+        size = 200
 
 
         title = self.get_kind(query, self.title_index, "postings_title")
         title = sorted(title.items(), key = lambda x: x[1], reverse=True)[:size]
-        
-
+  
 
         anchor = self.get_kind(query, self.anchor_index, "postings_anchor")
         anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:size]
@@ -179,10 +178,13 @@ class Backend:
             
             if i < len(title):
                 score = 2 - (i/size)
-                title_docs[title[i]] = score
+                title_docs[title[i][0]] = score
             if i < len(anchor):
+                min_point = 1
+                max_point = 2
                 score = 2 - (i/size)
-                anchor_docs[anchor[i]] = score       
+                score = ((score - min_point) / (max_point-min_point)) * 1.2 
+                anchor_docs[anchor[i][0]] = score       
 
         res = {}
         for doc, score in body.items():
@@ -216,13 +218,15 @@ class Backend:
         test_queries = json.loads(open("queries_train.json").read())
         predictions = []
         ground_trues = []
+        time = []
         for query, true_label in test_queries.items():
             
             preprocess_query = self.preprocess(query)
             start = t()
             pred = self.search(preprocess_query)
             end = t()
-            print(end-start)
+            time.append(end-start)
+            
 
             
             predictions.append(pred)
@@ -231,6 +235,7 @@ class Backend:
             
 
         print(evaluator.evaluate(ground_trues, predictions, 100))
+        print(f"avgTIME {np.avg(time)}")
 
 
 
