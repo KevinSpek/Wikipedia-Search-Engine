@@ -39,6 +39,7 @@ class Backend:
 
         rank_max = sorted(self.page_view.values(), reverse=True)[0]
         self.norm_page_rank = {}
+        
         for key, value_list in self.page_rank.items():
             self.norm_page_rank[key] = value_list/rank_max
 
@@ -50,57 +51,157 @@ class Backend:
     def relevent_docs(self, query_tokens, index, file_loc):
         
         relev_docs = defaultdict(list)
-        # doc_size = defaultdict(int)
+        
         for w, posting_list in index.posting_lists_iter(file_loc, query_tokens):
 
             posting_list = sorted(posting_list, key=lambda x: x[0], reverse=True)
             for doc, freq in posting_list:
                 relev_docs[doc].append((w, freq))
-                # doc_size[doc] += freq
+                
         return relev_docs
 
+    def tf_idf(self, posting_list, DL):
+        tf = defaultdict(int)
+
+        idf = 1+math.log(self.N/len(posting_list), 10)
+        for doc_id, freq in posting_list:
+            tf[doc_id] += (freq*idf) / (1+math.log(DL[doc_id], 2))
+        return tf
 
 
-    def cosine_similarity(self, query_tokens,index, tfidf, file_loc):
-        relev_docs = self.relevent_docs(query_tokens, index, file_loc)
+    def cosine_similarity(self, query_tokens,index, file_loc, df):
+        # relev_docs = self.relevent_docs(query_tokens, index, file_loc) #find the relavent docs to the query
+        res = {}
+        print(df)
+        query_doc = np.array(df.iloc[:, 0])
+
+        i = -1
+
         
-        docs = []
-        res = {}#[]
-        for doc, freqs in relev_docs.items():
+        for column in df:
             
-            total = 0
-            # total_freq = 0
-            for w, freq in freqs:
-                total += (freq / ((1+ len(query_tokens)) - len(freqs)))*(tfidf[w])
-                # total_freq += freq
+            i += 1
+            if i == 0:
+                continue
+            doc = np.array(df.iloc[:,i])
+            if len(query_doc) > 1:
+        
+                
+                top = np.dot(query_doc, doc)
+                bottom = np.sqrt(query_doc.dot(query_doc)) * np.sqrt(doc.dot(doc))
+                res[column] = top / bottom
+            else:
+                res[column] = doc[0]
             
-            # total *= (total_freq / index.DL[doc])
+        return res
+
+
+        # for doc, freq in relev_docs.items():
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # docs = []
+        # res = {}#[]
+        # for doc, freqs in relev_docs.items():
+        #     D_L = DL[doc] 
+        #     # self.body_index.DL
+            
+        #     total = 0
+        #     # total_freq = 0
+        #     for w, freq in freqs:
+        #         total =  / (D_L * len(query_tokens))
+
+        #         total += (freq / ((1+ len(query_tokens)) - len(freqs)))*(tfidf[w])
+        #         # total_freq += freq
+            
+        #     # total *= (total_freq / index.DL[doc])
 
 
             
 
-            # res[doc].append((doc,total))
-            res[doc] = total
-            docs.append(doc)
-        # res = sorted(res, key=lambda x: x[1], reverse=True)
+        #     # res[doc].append((doc,total))
+        #     res[doc] = total
+        #     docs.append(doc)
+        # # res = sorted(res, key=lambda x: x[1], reverse=True)
 
-        ## change to more efficent and fast way if needed
-        new_res = {}
-        if len(res) > 0:
-            max_val = max(res, key=res.get)
-            for key, value_list in res.items():
-                new_res[key] = value_list/max_val
-        return new_res
+        # ## change to more efficent and fast way if needed
+        # new_res = {}
+        # if len(res) > 0:
+        #     max_val = max(res, key=res.get)
+        #     for key, value_list in res.items():
+        #         new_res[key] = value_list/max_val
+        # return new_res
 
 
     def get_body(self, query):
+        query_doc_tfidf = {}
+        query_idf = {}
+        query_tf = defaultdict(int)
         query_tfidf = {}
-        for w, posting_list in self.body_index.posting_lists_iter("postings_body", query):
-            query_tfidf[w] = round(self.tf_idf(posting_list, self.body_index.DL), 5)
-        
-        
-        cosine_sim_body = self.cosine_similarity(query, self.body_index, query_tfidf, "postings_body")
 
+        for w, posting_list in self.body_index.posting_lists_iter("postings_body", query):
+            query_doc_tfidf[w] = self.tf_idf(posting_list, self.body_index.DL)
+            query_idf[w] = 1+math.log(self.N/len(posting_list), 10)
+        
+        """
+        {
+        "life": {"doc1": 1, "doc5": 192, ...}
+        "learn": {"doc2":3, "doc5": 100, ...}
+        
+                Doc1, Doc2, Doc5
+        life     1    null  192
+        learn   null   3    100
+
+        }
+        
+        
+        
+        """
+        for w in query:
+            query_tf[w] += 1
+
+        for w, freq in query_tf.items():
+            query_tfidf[w] = [freq*query_idf[w]]
+        
+        
+        df_query_tfidf = pd.DataFrame(query_tfidf)
+        df = pd.DataFrame(query_doc_tfidf)
+
+  
+        df = pd.concat([df_query_tfidf, df]).T
+        df = df.fillna(value=0)
+
+       
+        cosine_sim_body = self.cosine_similarity(query, self.body_index, "postings_body", df)
         return cosine_sim_body
 
 
@@ -146,15 +247,7 @@ class Backend:
 
 
 
-
-    def tf_idf(self, posting_list, DL):
-        tf = 0
-
-        for doc_id, freq in posting_list:
-            tf += freq/DL[doc_id]
-
-        idf = math.log(self.N/len(posting_list), 10)
-        return tf*idf
+    
 
 
             
@@ -163,26 +256,50 @@ class Backend:
 
         
         body = self.get_body(query)
-     
+        # print(body[23862])
+        # print(body[23329])
+        # print(body[48407627])
+        # exit()
+        # body = self.get_body(['google', 'work'])
+        # print(body[44674524])
+        # print(body[41585185])
+        # exit()
 
-        size = 200
+        size = 400
 
 
-        title = self.get_kind(query, self.title_index, "postings_title")
-        title = sorted(title.items(), key = lambda x: x[1], reverse=True)[:size]
-  
+        titles = self.get_kind(query, self.title_index, "postings_title")
+        
+        title_docs = []#defaultdict(list)
+        for title, metrics in titles.items():
+            if metrics[0] == metrics[1] and metrics[0] == len(query) and len(query) > 1:
+                # title_docs[metrics].append(title)
+                title_docs.append(title)
 
+        
+
+        # titles = sorted(title_docs.items(), key = lambda x: x[0], reverse=True)
+        
+        # print(titles)
+
+        # title_docs = {}
+        # for i in range(len(titles)):
+        #     score = 2 - (i/len(titles))
+        #     min_point = 1
+        #     max_point = 2
+            
+        #     for doc_ids in titles[i][1]:
+        #         score = ((score - min_point) / (max_point-min_point)) * 1.3
+        #         title_docs[doc_ids] = score
+
+        
         anchor = self.get_kind(query, self.anchor_index, "postings_anchor")
         anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:size]
 
-        title_docs = {}
+        
         anchor_docs = {}
 
-        for i in range(size):
-            
-            if i < len(title):
-                score = 2 - (i/size)
-                title_docs[title[i][0]] = score
+        for i in range(size):   
             if i < len(anchor):
                 min_point = 1
                 max_point = 2
@@ -192,19 +309,20 @@ class Backend:
 
         res = {}
         for doc, score in body.items():
-      
             total_score = score
-            if doc in title_docs:
-                total_score *= title_docs[doc]
+            # if doc in title_docs:
+            #     total_score += 0.5
 
-            if doc in anchor_docs:
-                total_score *= anchor_docs[doc]
+            # if doc in anchor_docs:
+            #     total_score *= anchor_docs[doc]
 
-            if doc in self.norm_page_view:
-                total_score *= (self.norm_page_view[doc]+1)
+            # if doc in self.norm_page_view:
+            #     total_score *= (self.norm_page_view[doc]+1)
             
-            if doc in self.norm_page_rank:
-                total_score *= (self.norm_page_rank[doc]+1)
+            # if doc in self.norm_page_rank:
+            #     total_score *= (self.norm_page_rank[doc]+1)
+
+
             res[doc] = total_score
 
         res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
