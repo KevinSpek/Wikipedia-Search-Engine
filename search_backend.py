@@ -59,35 +59,44 @@ class Backend:
 
         idf = 1+math.log(self.N/len(posting_list), 10)
         for doc_id, freq in posting_list:
-            tf[doc_id] += (freq*idf) / (1+math.log(DL[doc_id], 2))
+            tf[doc_id] += (freq*idf) / (1+math.log(DL[doc_id], 10))
         return tf
 
 
-    def cosine_similarity(self, df):
+    def cosine_similarity(self, df, query_df):
+    
+        top = df.dot(query_df.T.to_numpy()).T
         
-        res = {}
-        print(df)
-        query_doc = np.array(df.iloc[:, 0])
+        bottom = float(np.sqrt(query_df.dot(query_df.T.to_numpy()).iat[0,0]) * np.sqrt(df.T.dot(df.to_numpy()).iat[0,0]))
+        res = top.div(bottom)
+        res = res.sort_values(by=res.index[0], ascending=False, axis=1)
+        epsilon = 0.01
+        res = res.loc[:, res.iloc[0] > epsilon]
+        print(res)
+        return res
+        
 
-        i = -1
+        # query_doc = np.array(df.iloc[:, 0])
+
+        # i = -1
 
         
-        for column in df:
+        # for column in df:
             
-            i += 1
-            if i == 0:
-                continue
-            doc = np.array(df.iloc[:,i])
-            if len(query_doc) > 1:
+        #     i += 1
+        #     if i == 0:
+        #         continue
+        #     doc = np.array(df.iloc[:,i])
+        #     if len(query_doc) > 1:
         
                 
-                top = np.dot(query_doc, doc)
-                bottom = np.sqrt(query_doc.dot(query_doc)) * np.sqrt(doc.dot(doc))
-                res[column] = top / bottom
-            else:
-                res[column] = doc[0]
+        #         top = np.dot(query_doc, doc)
+        #         bottom = np.sqrt(query_doc.dot(query_doc)) * np.sqrt(doc.dot(doc))
+        #         res[column] = top / bottom
+        #     else:
+        #         res[column] = doc[0]
             
-        return res
+        # return res
 
 
 
@@ -127,11 +136,12 @@ class Backend:
         df = pd.DataFrame(query_doc_tfidf)
 
   
-        df = pd.concat([df_query_tfidf, df]).T
+        # df = pd.concat([df_query_tfidf, df]).T
         df = df.fillna(value=0)
+        df_query_tfidf = df_query_tfidf.fillna(value=0)
 
        
-        cosine_sim_body = self.cosine_similarity(df)
+        cosine_sim_body = self.cosine_similarity(df, df_query_tfidf)
         return cosine_sim_body
 
 
@@ -183,7 +193,7 @@ class Backend:
             
 
     def search(self, query):
-        body = self.get_body(query)
+        body = dict(self.get_body(query))
         anchor_docs = []
         if len(query) > 1:
             new_query = []
@@ -223,12 +233,12 @@ class Backend:
 
         res = {}
         for doc, score in body.items():
-            total_score = score
+            total_score = score.iloc[0]
             if doc in title_docs:
-                total_score *= 5
+                total_score *= 10
 
             if doc in anchor_docs:
-                total_score *= 5
+                total_score *= 10
 
             if doc in self.norm_page_view and self.norm_page_view[doc] > 0.5:
                 total_score *= 2
