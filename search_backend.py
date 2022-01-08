@@ -16,7 +16,11 @@ from stop_words import get_stop_words
 from time import time as t
 import re
 
-
+BUCKET_POSTINGS_BODY = 'postings_body/postings_gcp'
+# BUCKET_POSTINGS_STEM_BODY = 'postings_body_stem'
+BUCKET_POSTINGS_TITLE = 'postings_title/postings_gcp'
+BUCKET_POSTINGS_ANCHOR = 'postings_anchor/postings_gcp'
+BUCKET_POSTINGS_ANCHOR_DOUBLE = 'postings_anchor_double/postings_gcp'
 
 
 
@@ -24,16 +28,20 @@ class Backend:
     
     def __init__(self):
         self.body_index = pickle.load(open("body_index.pkl", "rb"))
+        # self.body_stem_index = pickle.load(open("body_stem_index.pkl", "rb"))
         self.title_index = pickle.load(open("title_index.pkl", "rb"))
         self.anchor_index = pickle.load(open("anchor_index.pkl", "rb"))
+        self.anchor_double_index = pickle.load(open('anchor_double_index.pkl', 'rb'))
         self.page_rank =  pd.read_csv(gzip.open('data/page_rank.csv.gz', 'rb'))
         self.page_view = pickle.load(open('page_view.pkl', 'rb'))
+        self.page_view_12 = pickle.load(open('pageviews-202112.pkl', 'rb'))
+        self.anchor_double_index = pickle.load(open('anchor_double_index.pkl'), 'rb')
 
-
-        view_max = sorted(self.page_view.values(), reverse=True)[0]
+       
+        view_max = sorted(self.page_view_12.values(), reverse=True)[0]
     
         self.norm_page_view = {}
-        for key, value_list in self.page_view.items():
+        for key, value_list in self.page_view_12.items():
             self.norm_page_view[key] = value_list/view_max
         
 
@@ -46,20 +54,6 @@ class Backend:
         self.N = len(self.page_rank)
 
 
-    
-
-    def relevent_docs(self, query_tokens, index, file_loc):
-        
-        relev_docs = defaultdict(list)
-        
-        for w, posting_list in index.posting_lists_iter(file_loc, query_tokens):
-
-            posting_list = sorted(posting_list, key=lambda x: x[0], reverse=True)
-            for doc, freq in posting_list:
-                relev_docs[doc].append((w, freq))
-                
-        return relev_docs
-
     def tf_idf(self, posting_list, DL):
         tf = defaultdict(int)
 
@@ -69,8 +63,8 @@ class Backend:
         return tf
 
 
-    def cosine_similarity(self, query_tokens,index, file_loc, df):
-        # relev_docs = self.relevent_docs(query_tokens, index, file_loc) #find the relavent docs to the query
+    def cosine_similarity(self, df):
+        
         res = {}
         print(df)
         query_doc = np.array(df.iloc[:, 0])
@@ -96,70 +90,6 @@ class Backend:
         return res
 
 
-        # for doc, freq in relev_docs.items():
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        # docs = []
-        # res = {}#[]
-        # for doc, freqs in relev_docs.items():
-        #     D_L = DL[doc] 
-        #     # self.body_index.DL
-            
-        #     total = 0
-        #     # total_freq = 0
-        #     for w, freq in freqs:
-        #         total =  / (D_L * len(query_tokens))
-
-        #         total += (freq / ((1+ len(query_tokens)) - len(freqs)))*(tfidf[w])
-        #         # total_freq += freq
-            
-        #     # total *= (total_freq / index.DL[doc])
-
-
-            
-
-        #     # res[doc].append((doc,total))
-        #     res[doc] = total
-        #     docs.append(doc)
-        # # res = sorted(res, key=lambda x: x[1], reverse=True)
-
-        # ## change to more efficent and fast way if needed
-        # new_res = {}
-        # if len(res) > 0:
-        #     max_val = max(res, key=res.get)
-        #     for key, value_list in res.items():
-        #         new_res[key] = value_list/max_val
-        # return new_res
 
 
     def get_body(self, query):
@@ -168,7 +98,7 @@ class Backend:
         query_tf = defaultdict(int)
         query_tfidf = {}
 
-        for w, posting_list in self.body_index.posting_lists_iter("postings_body", query):
+        for w, posting_list in self.body_index.posting_lists_iter(BUCKET_POSTINGS_BODY, query):
             query_doc_tfidf[w] = self.tf_idf(posting_list, self.body_index.DL)
             query_idf[w] = 1+math.log(self.N/len(posting_list), 10)
         
@@ -201,7 +131,7 @@ class Backend:
         df = df.fillna(value=0)
 
        
-        cosine_sim_body = self.cosine_similarity(query, self.body_index, "postings_body", df)
+        cosine_sim_body = self.cosine_similarity(df)
         return cosine_sim_body
 
 
@@ -227,12 +157,12 @@ class Backend:
 
     def get_title(self, query):
 
-        res = self.get_kind(query, self.title_index, "postings_title")
+        res = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
         res = sorted(res.items(), key = lambda x: x[1], reverse=True)
         return [x for x, y in res]
 
     def get_anchor(self, query):
-        res = self.get_kind(query, self.anchor_index, "postings_anchor")
+        res = self.get_kind(query, self.anchor_index, BUCKET_POSTINGS_ANCHOR)
         res = sorted(res.items(), key = lambda x: x[1], reverse=True)
         return [x for x, y in res]
        
@@ -253,81 +183,72 @@ class Backend:
             
 
     def search(self, query):
-
-        
         body = self.get_body(query)
-        # print(body[23862])
-        # print(body[23329])
-        # print(body[48407627])
-        # exit()
-        # body = self.get_body(['google', 'work'])
-        # print(body[44674524])
-        # print(body[41585185])
-        # exit()
+        if len(query) > 1:
+            new_query = []
+            for i in [(query[i], query[j]) for i in range(len(query)) for j in range(i + 1, len(query))]:
+                new_query.append('-'.join(i))
+            query_with_k = '-'.join(query)
+            if query_with_k not in new_query:
+                new_query.append(query_with_k)
 
-        size = 400
+            anchor = self.get_kind(new_query, self.anchor_double_index, BUCKET_POSTINGS_ANCHOR_DOUBLE)
+            anchor = sorted(anchor.items(), key=lambda x: x[1], reverse=True)[:40]
 
+            if len(anchor) == 0:
+                print('len(anchor)==0')
+                return self.search_one_word(query,size=20)
 
-        titles = self.get_kind(query, self.title_index, "postings_title")
+            print('>1 and only double anchor')
+
+            return [x[0] for x in anchor]
+
+        else:
         
-        title_docs = []#defaultdict(list)
-        for title, metrics in titles.items():
-            if metrics[0] == metrics[1] and metrics[0] == len(query) and len(query) > 1:
-                # title_docs[metrics].append(title)
-                title_docs.append(title)
-
-        
-
-        # titles = sorted(title_docs.items(), key = lambda x: x[0], reverse=True)
-        
-        # print(titles)
-
-        # title_docs = {}
-        # for i in range(len(titles)):
-        #     score = 2 - (i/len(titles))
-        #     min_point = 1
-        #     max_point = 2
             
-        #     for doc_ids in titles[i][1]:
-        #         score = ((score - min_point) / (max_point-min_point)) * 1.3
-        #         title_docs[doc_ids] = score
+            size = 400
+            titles = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
+            title_docs = []
+            for title, metrics in titles.items():
+                if metrics[0] == metrics[1] and metrics[0] == len(query) and len(query) > 1:
 
-        
-        anchor = self.get_kind(query, self.anchor_index, "postings_anchor")
-        anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:size]
+                    title_docs.append(title)
 
-        
-        anchor_docs = {}
+            # anchor = self.get_kind(query, self.anchor_index, BUCKET_POSTINGS_ANCHOR)
+            # anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:size]
 
-        for i in range(size):   
-            if i < len(anchor):
-                min_point = 1
-                max_point = 2
-                score = 2 - (i/size)
-                score = ((score - min_point) / (max_point-min_point)) * 1.2 
-                anchor_docs[anchor[i][0]] = score       
-
-        res = {}
-        for doc, score in body.items():
-            total_score = score
-            # if doc in title_docs:
-            #     total_score += 0.5
-
-            # if doc in anchor_docs:
-            #     total_score *= anchor_docs[doc]
-
-            # if doc in self.norm_page_view:
-            #     total_score *= (self.norm_page_view[doc]+1)
             
-            # if doc in self.norm_page_rank:
-            #     total_score *= (self.norm_page_rank[doc]+1)
+            # anchor_docs = {}
+
+            # for i in range(size):   
+            #     if i < len(anchor):
+            #         min_point = 1
+            #         max_point = 2
+            #         score = 2 - (i/size)
+            #         score = ((score - min_point) / (max_point-min_point)) * 1.2 
+            #         anchor_docs[anchor[i][0]] = score       
+
+            res = {}
+            for doc, score in body.items():
+                total_score = score
+                if doc in title_docs:
+                    total_score *= 10
+
+                # if doc in anchor_docs:
+                #     total_score *= anchor_docs[doc]
+
+                if doc in self.norm_page_view and self.norm_page_view[doc] > 0.5:
+                    total_score *= 2
+                
+                # if doc in self.norm_page_rank:
+                #     total_score *= (self.norm_page_rank[doc]+1)
 
 
-            res[doc] = total_score
+                res[doc] = total_score
 
-        res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
-        res = [doc for doc, score in res]
-        return res
+            res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
+            res = [doc for doc, score in res]
+            return res
 
 
 
@@ -345,6 +266,7 @@ class Backend:
         all_stopwords = english_stopwords.union(corpus_stopwords).union(get_stop_words('en'))
         RE_WORD = re.compile(r"""[\#\@\w](['\-]?\w){2,24}""", re.UNICODE)
         tokens = [token.group() for token in RE_WORD.finditer(query.lower()) if token.group() not in all_stopwords]
+        # tokens_stem = [ps.stem(token.group()) for token in RE_WORD.finditer(query.lower()) if token.group() not in all_stopwords]
 
 
         return tokens
@@ -373,7 +295,7 @@ class Backend:
             
             
 
-        print(evaluator.evaluate(ground_trues, predictions, 50))
+        print(evaluator.evaluate(ground_trues, predictions, 40))
         print(f"avgTIME {np.mean(time)}")
 
 
