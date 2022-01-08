@@ -35,8 +35,8 @@ class Backend:
         self.page_rank =  pd.read_csv(gzip.open('data/page_rank.csv.gz', 'rb'))
         self.page_view = pickle.load(open('page_view.pkl', 'rb'))
         self.page_view_12 = pickle.load(open('pageviews-202112.pkl', 'rb'))
-        self.anchor_double_index = pickle.load(open('anchor_double_index.pkl'), 'rb')
-
+        self.anchor_double_index = pickle.load(open('anchor_double_index.pkl', 'rb'))
+        
        
         view_max = sorted(self.page_view_12.values(), reverse=True)[0]
     
@@ -184,6 +184,7 @@ class Backend:
 
     def search(self, query):
         body = self.get_body(query)
+        anchor_docs = []
         if len(query) > 1:
             new_query = []
             for i in [(query[i], query[j]) for i in range(len(query)) for j in range(i + 1, len(query))]:
@@ -193,26 +194,18 @@ class Backend:
                 new_query.append(query_with_k)
 
             anchor = self.get_kind(new_query, self.anchor_double_index, BUCKET_POSTINGS_ANCHOR_DOUBLE)
-            anchor = sorted(anchor.items(), key=lambda x: x[1], reverse=True)[:40]
+            anchor = sorted(anchor.items(), key=lambda x: x[1], reverse=True)[:100]
 
-            if len(anchor) == 0:
-                print('len(anchor)==0')
-                return self.search_one_word(query,size=20)
+            anchor_docs = [x[0] for x in anchor]
 
-            print('>1 and only double anchor')
-
-            return [x[0] for x in anchor]
-
-        else:
-        
             
-            size = 400
-            titles = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
-            title_docs = []
-            for title, metrics in titles.items():
-                if metrics[0] == metrics[1] and metrics[0] == len(query) and len(query) > 1:
+        
+        titles = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
+        title_docs = []
+        for title, metrics in titles.items():
+            if metrics[0] == metrics[1] and metrics[0] == len(query) and len(query) > 1:
 
-                    title_docs.append(title)
+                title_docs.append(title)
 
             # anchor = self.get_kind(query, self.anchor_index, BUCKET_POSTINGS_ANCHOR)
             # anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:size]
@@ -228,27 +221,27 @@ class Backend:
             #         score = ((score - min_point) / (max_point-min_point)) * 1.2 
             #         anchor_docs[anchor[i][0]] = score       
 
-            res = {}
-            for doc, score in body.items():
-                total_score = score
-                if doc in title_docs:
-                    total_score *= 10
+        res = {}
+        for doc, score in body.items():
+            total_score = score
+            if doc in title_docs:
+                total_score *= 5
 
-                # if doc in anchor_docs:
-                #     total_score *= anchor_docs[doc]
+            if doc in anchor_docs:
+                total_score *= 5
 
-                if doc in self.norm_page_view and self.norm_page_view[doc] > 0.5:
-                    total_score *= 2
-                
-                # if doc in self.norm_page_rank:
-                #     total_score *= (self.norm_page_rank[doc]+1)
+            if doc in self.norm_page_view and self.norm_page_view[doc] > 0.5:
+                total_score *= 2
+            
+            # if doc in self.norm_page_rank:
+            #     total_score *= (self.norm_page_rank[doc]+1)
 
 
-                res[doc] = total_score
+            res[doc] = total_score
 
-            res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
-            res = [doc for doc, score in res]
-            return res
+        res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
+        res = [doc for doc, score in res]
+        return res
 
 
 
