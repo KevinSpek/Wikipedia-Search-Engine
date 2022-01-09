@@ -15,6 +15,7 @@ from nltk.corpus import stopwords
 from stop_words import get_stop_words
 from time import time as t
 import re
+import numbers
 
 BUCKET_POSTINGS_BODY = 'postings_body/postings_gcp'
 # BUCKET_POSTINGS_STEM_BODY = 'postings_body_stem'
@@ -75,32 +76,7 @@ class Backend:
         print(res)
         return res
         
-
-        # query_doc = np.array(df.iloc[:, 0])
-
-        # i = -1
-
-        
-        # for column in df:
-            
-        #     i += 1
-        #     if i == 0:
-        #         continue
-        #     doc = np.array(df.iloc[:,i])
-        #     if len(query_doc) > 1:
-        
-                
-        #         top = np.dot(query_doc, doc)
-        #         bottom = np.sqrt(query_doc.dot(query_doc)) * np.sqrt(doc.dot(doc))
-        #         res[column] = top / bottom
-        #     else:
-        #         res[column] = doc[0]
-            
-        # return res
-
     
-
-
 
     def get_body(self, query):
         query_doc_tfidf = {}
@@ -120,7 +96,6 @@ class Backend:
                 Doc1, Doc2, Doc5
         life     1    null  192
         learn   null   3    100
-
         }
         """
 
@@ -130,7 +105,8 @@ class Backend:
             query_tf[w] += 1
 
         for w, freq in query_tf.items():
-            query_tfidf[w] = [freq*query_idf[w]]
+            score = freq*query_idf[w]
+            query_tfidf[w] = [score]
 
 
         max_tfidf = max(set().union(*query_tfidf.values()))
@@ -141,6 +117,7 @@ class Backend:
         
         df_query_tfidf = df_query_tfidf.loc[:, df_query_tfidf.iloc[0] > (max_tfidf-epsilon)]
         words = list(filter(lambda i: i not in df_query_tfidf.columns, words))
+
 
 
         df = pd.DataFrame(query_doc_tfidf)
@@ -155,6 +132,7 @@ class Backend:
        
         cosine_sim_body = self.cosine_similarity(df, df_query_tfidf)
         return cosine_sim_body, df.columns
+
 
 
 
@@ -205,9 +183,8 @@ class Backend:
 
     
         query = list(query)
-        
-        
-        
+
+   
         new_query = []
         
         for q in [(query[i], query[j]) for i in range(len(query)) for j in range(i + 1, len(query))]:
@@ -215,9 +192,8 @@ class Backend:
             
 
             new_query.append('-'.join(q))
-            # new_query.append('-'.join(q[::-1]))
         
-        
+
     
         query_with_k = '-'.join(query)
         if query_with_k not in new_query:
@@ -257,7 +233,7 @@ class Backend:
                 if doc in title_docs:
                     total_score *= 10
 
-
+                
                 res[doc] = total_score
 
             res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
@@ -280,7 +256,7 @@ class Backend:
         corpus_stopwords = ["category", "references", "also", "external", "links", 
                             "may", "first", "see", "history", "people", "one", "two", 
                             "part", "thumb", "including", "second", "following", 
-                            "many", "however", "would", "became", "make"]
+                            "many", "however", "would", "became", "make", "good", "best", "worst"]
 
         all_stopwords = english_stopwords.union(corpus_stopwords).union(get_stop_words('en'))
         RE_WORD = re.compile(r"""[\#\@\w](['\-]?\w){2,24}""", re.UNICODE)
