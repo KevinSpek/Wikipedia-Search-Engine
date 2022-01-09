@@ -98,6 +98,7 @@ class Backend:
             
         # return res
 
+    
 
 
 
@@ -106,7 +107,7 @@ class Backend:
         query_idf = {}
         query_tf = defaultdict(int)
         query_tfidf = {}
-
+        
         for w, posting_list in self.body_index.posting_lists_iter(BUCKET_POSTINGS_BODY, query):
             query_doc_tfidf[w] = self.tf_idf(posting_list, self.body_index.DL)
             query_idf[w] = 1+math.log(self.N/len(posting_list), 10)
@@ -121,19 +122,32 @@ class Backend:
         learn   null   3    100
 
         }
-        
-        
-        
         """
+
+        
+
         for w in query:
             query_tf[w] += 1
 
         for w, freq in query_tf.items():
             query_tfidf[w] = [freq*query_idf[w]]
-        
+
+
+        max_tfidf = max(set().union(*query_tfidf.values()))
+        epsilon = 0.9
         
         df_query_tfidf = pd.DataFrame(query_tfidf)
+        words = df_query_tfidf.columns
+        df_query_tfidf = df_query_tfidf.loc[:, df_query_tfidf.iloc[0] > (max_tfidf-epsilon)]
+        
+        words = filter(lambda i: i not in df_query_tfidf.columns, words) 
+
+
         df = pd.DataFrame(query_doc_tfidf)
+        df.drop(words, axis=1,inplace=True)
+        
+       
+        
 
   
         # df = pd.concat([df_query_tfidf, df]).T
