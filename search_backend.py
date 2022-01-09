@@ -138,17 +138,15 @@ class Backend:
         
         df_query_tfidf = pd.DataFrame(query_tfidf)
         words = df_query_tfidf.columns
-        df_query_tfidf = df_query_tfidf.loc[:, df_query_tfidf.iloc[0] > (max_tfidf-epsilon)]
         
-        words = filter(lambda i: i not in df_query_tfidf.columns, words) 
+        df_query_tfidf = df_query_tfidf.loc[:, df_query_tfidf.iloc[0] > (max_tfidf-epsilon)]
+        words = list(filter(lambda i: i not in df_query_tfidf.columns, words))
 
 
         df = pd.DataFrame(query_doc_tfidf)
         df.drop(words, axis=1,inplace=True)
-        
-       
-        
 
+    
   
         # df = pd.concat([df_query_tfidf, df]).T
         df = df.fillna(value=0)
@@ -156,7 +154,7 @@ class Backend:
 
        
         cosine_sim_body = self.cosine_similarity(df, df_query_tfidf)
-        return cosine_sim_body
+        return cosine_sim_body, df.columns
 
 
 
@@ -201,72 +199,76 @@ class Backend:
 
 
 
-    
-
-
-            
 
     def search(self, query):
-        body = dict(self.get_body(query))
-        anchor_docs = []
-        if len(query) > 1:
-            new_query = []
-            for i in [(query[i], query[j]) for i in range(len(query)) for j in range(i + 1, len(query))]:
-                new_query.append('-'.join(i))
-            query_with_k = '-'.join(query)
-            if query_with_k not in new_query:
-                new_query.append(query_with_k)
+        # body = dict(self.get_body(query))
 
-            anchor = self.get_kind(new_query, self.anchor_double_index, BUCKET_POSTINGS_ANCHOR_DOUBLE)
-            anchor = sorted(anchor.items(), key=lambda x: x[1], reverse=True)[:100]
-
-            anchor_docs = [x[0] for x in anchor]
-
-            
+    
+        query = list(query)
         
-        titles = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
-        title_docs = []
-        for title, metrics in titles.items():
-            if metrics[0] == metrics[1] and metrics[0] == len(query) and len(query) > 1:
-
-                title_docs.append(title)
-
-            # anchor = self.get_kind(query, self.anchor_index, BUCKET_POSTINGS_ANCHOR)
-            # anchor = sorted(anchor.items(), key = lambda x: x[1], reverse=True)[:size]
-
+        
+        
+        new_query = []
+        
+        for q in [(query[i], query[j]) for i in range(len(query)) for j in range(i + 1, len(query))]:
             
-            # anchor_docs = {}
-
-            # for i in range(size):   
-            #     if i < len(anchor):
-            #         min_point = 1
-            #         max_point = 2
-            #         score = 2 - (i/size)
-            #         score = ((score - min_point) / (max_point-min_point)) * 1.2 
-            #         anchor_docs[anchor[i][0]] = score       
-
-        res = {}
-        for doc, score in body.items():
-            total_score = score.iloc[0]
-            if doc in title_docs:
-                total_score *= 10
-
-            if doc in anchor_docs:
-                total_score *= 10
-
-            if doc in self.norm_page_view and self.norm_page_view[doc] > 0.5:
-                total_score *= 2
             
-            # if doc in self.norm_page_rank:
-            #     total_score *= (self.norm_page_rank[doc]+1)
+
+            new_query.append('-'.join(q))
+            # new_query.append('-'.join(q[::-1]))
+        
+        
+    
+        query_with_k = '-'.join(query)
+        if query_with_k not in new_query:
+            new_query.append(query_with_k)
+
+        anchor = self.get_kind(new_query, self.anchor_double_index, BUCKET_POSTINGS_ANCHOR_DOUBLE)
+        anchor = sorted(anchor.items(), key=lambda x: x[1], reverse=True)[:100]
+
+        anchor_docs = [x[0] for x in anchor]
 
 
-            res[doc] = total_score
 
-        res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
-        res = [doc for doc, score in res]
-        return res
+        if len(anchor_docs) > 15:
+            body, query = self.get_body(query)
+            body_docs = list(body.keys())[:50]
+            res = []
+            for id in anchor_docs:
+                if id in body_docs:
+                    res.append(id)
+            return res
 
+        if len(anchor_docs) == 0:
+            body, query = self.get_body(query)
+           
+            titles = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
+            title_docs = []
+
+            for title, metrics in titles.items():
+                if metrics[0] == metrics[1] and metrics[0] == len(query):
+                    
+                    title_docs.append(title)
+
+            res = {}
+            for doc, score in body.items():
+                total_score = score.iloc[0]
+                
+                if doc in title_docs:
+                    total_score *= 10
+
+
+                res[doc] = total_score
+
+            res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:100]
+            res = [doc for doc, score in res]
+            return res
+
+
+        
+        # Anchor is bigger than 1 
+
+        return anchor_docs
 
 
 
@@ -294,7 +296,7 @@ class Backend:
         predictions = []
         ground_trues = []
         time = []
-        for query, true_label in list(test_queries.items())[:10]:
+        for query, true_label in list(test_queries.items()):
             
             preprocess_query = self.preprocess(query)
             start = t()
