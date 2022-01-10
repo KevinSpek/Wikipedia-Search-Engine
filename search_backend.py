@@ -36,11 +36,12 @@ class Backend:
         self.body_stem_index = pickle.load(open("data/body_stem_index.pkl", "rb"))
         self.title_index = pickle.load(open("data/title_index.pkl", "rb"))
         self.anchor_index = pickle.load(open("data/anchor_index.pkl", "rb"))
-        self.anchor_double_index = pickle.load(open('data/anchor_double_index.pkl', 'rb'))
         self.page_rank =  pd.read_csv(gzip.open('data/page_rank.csv.gz', 'rb'))
         self.page_view = pickle.load(open('data/page_view.pkl', 'rb')) # October Page view has missing documents
         self.page_view_12 = pickle.load(open('data/pageviews-202112.pkl', 'rb')) # Use December 2021 page views to include missing docs
         self.anchor_double_index = pickle.load(open('data/anchor_double_index.pkl', 'rb'))
+
+        
         
        
         view_max = sorted(self.page_view_12.values(), reverse=True)[0] 
@@ -392,13 +393,16 @@ class Backend:
             body, query = self.get_body(query)
            
             titles = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
+            
             title_docs = []
+            anchor_docs = []
 
             for title, metrics in titles.items():
-                if metrics[0] == metrics[1] and metrics[0] == len(query):
+                if metrics[0] == metrics[1]:
                     
                     title_docs.append(title)
-
+                
+          
             res = {}
             for doc, score in body.items():
                 # Calculates score for each doc
@@ -407,6 +411,8 @@ class Backend:
                 if doc in title_docs:
                     total_score *= 10
 
+                
+                
                 
                 res[doc] = total_score
 
@@ -456,8 +462,3 @@ class Backend:
             
         print(f"AVG@TIME {np.mean(time)}")
         print(evaluator.evaluate(ground_trues, predictions,40))
-        
-
-
-backend = Backend()
-backend.evaluate()
