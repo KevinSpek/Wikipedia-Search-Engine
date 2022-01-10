@@ -421,7 +421,7 @@ class Backend:
                     
                 res[doc] = total_score
 
-            res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:50]
+            res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:15]
             res = [doc for doc, score in res]
             return res
 
@@ -468,3 +468,7 @@ class Backend:
         print(f"AVG@TIME {np.mean(time)}")
         print(evaluator.evaluate(ground_trues, predictions, 40))
 
+
+
+backend = Backend()
+backend.evaluate()
