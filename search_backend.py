@@ -13,6 +13,9 @@ import json
 from nltk.corpus import stopwords
 from time import time as t
 import re
+import os
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/kevinspektor/University/y3s1/information-retrieval/wiki-retrieval-669377a04b0f.json"
 
 
 # Global indexes bucket locations
@@ -44,14 +47,14 @@ class Backend:
         
         
        
-        view_max = sorted(self.page_view_12.values(), reverse=True)[0] 
+        view_max = sorted(self.page_view_12.values(), reverse=True)[10] 
     
         self.norm_page_view = {} # Create a normalized version of page view
         for key, value_list in self.page_view_12.items():
             self.norm_page_view[key] = value_list/view_max
         
 
-        rank_max = sorted(self.page_view.values(), reverse=True)[0]
+        rank_max = sorted(self.page_view.values(), reverse=True)[10]
         self.norm_page_rank = {}
         
         for key, value_list in self.page_rank.items(): # Create a normalized version of page rank
@@ -391,29 +394,31 @@ class Backend:
 
         if len(anchor_docs) == 0: # If there are no docs in the double-anchor-index search in other metrics.
             body, query = self.get_body(query)
-           
-            titles = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
             
-            title_docs = []
-            anchor_docs = []
-
-            for title, metrics in titles.items():
-                if metrics[0] == metrics[1]:
-                    
-                    title_docs.append(title)
-                
-          
+            titles = self.get_kind(query, self.title_index, BUCKET_POSTINGS_TITLE)
+            anchors = self.get_kind(query, self.anchor_index, BUCKET_POSTINGS_TITLE)
+            
+            
             res = {}
             for doc, score in body.items():
                 # Calculates score for each doc
                 total_score = score.iloc[0]
                 
-                if doc in title_docs:
-                    total_score *= 10
-
+                if doc in self.norm_page_view:
+                    if self.norm_page_view[doc] > 0.03:
+                        total_score *= 5+self.norm_page_view[doc]
                 
+                if doc in self.norm_page_rank:
+                    if self.norm_page_rank[doc] > 0.03:
+                        total_score *= 3+self.norm_page_rank[doc]
+                    
                 
+                if doc in titles:
+                    total_score *= 5
                 
+                if doc in anchors:
+                    total_score *= 3
+                    
                 res[doc] = total_score
 
             res = sorted(res.items(), key= lambda x: x[1], reverse=True)[:50]
@@ -424,7 +429,7 @@ class Backend:
 
 
     def preprocess(self, query):
-
+        
         english_stopwords = frozenset(stopwords.words('english'))
         corpus_stopwords = ["category", "references", "also", "external", "links", 
                             "may", "first", "see", "history", "people", "one", "two", 
@@ -461,4 +466,5 @@ class Backend:
             
             
         print(f"AVG@TIME {np.mean(time)}")
-        print(evaluator.evaluate(ground_trues, predictions,40))
+        print(evaluator.evaluate(ground_trues, predictions, 40))
+
