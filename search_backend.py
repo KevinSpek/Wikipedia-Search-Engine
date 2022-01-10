@@ -15,7 +15,7 @@ from time import time as t
 import re
 import os
 
-# os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="wiki-retrieval-669377a04b0f.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="wiki-retrieval-669377a04b0f.json"
 
 
 # Global indexes bucket locations
@@ -167,9 +167,10 @@ class Backend:
             query_doc_tfidf[w] = self.tf_idf(posting_list, self.body_index.DL) # save tfidf for each doc
             query_idf[w] = 1+math.log(self.N/len(posting_list), 10) # save udf of each word in query
 
-
+        if len(query_idf) == 0:
+            return pd.DataFrame({}), []
     
-        for w in query:
+        for w in query_idf:
             query_tf[w] += 1 # Calculate term frequency of words in query
 
         for w, freq in query_tf.items():
@@ -467,5 +468,4 @@ class Backend:
             
         print(f"AVG@TIME {np.mean(time)}")
         print(evaluator.evaluate(ground_trues, predictions, 40))
-
 
