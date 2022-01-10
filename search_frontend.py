@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonif
+from flask import Flask, request, jsonify
 
 
 
@@ -42,7 +42,7 @@ def search():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    
+    res = backend.search(query)
 
 
     # END SOLUTION
@@ -70,9 +70,9 @@ def search_body():
       return jsonify(res)
     # BEGIN SOLUTION
 
-    res = backend.get_body(query)
-    res = sorted(res.items(), key= lambda x:x[1], reverse=True)
-    res = [doc for doc, _ in res][:100]
+    res, _ = backend.get_body(query)
+    res = res.iloc[:, : 100]
+    res = list(res.columns)
     # END SOLUTION
     return jsonify(res)
 
