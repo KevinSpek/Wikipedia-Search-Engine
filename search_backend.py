@@ -11,7 +11,6 @@ import math
 from evaluation import Evaluation
 import json
 from nltk.corpus import stopwords
-from stop_words import get_stop_words
 from time import time as t
 import re
 
@@ -426,7 +425,7 @@ class Backend:
                             "part", "thumb", "including", "second", "following", 
                             "many", "however", "would", "became", "make", "good", "best", "worst"]
 
-        all_stopwords = english_stopwords.union(corpus_stopwords).union(get_stop_words('en'))
+        all_stopwords = english_stopwords.union(corpus_stopwords)
         RE_WORD = re.compile(r"""[\#\@\w](['\-]?\w){2,24}""", re.UNICODE)
         tokens = [token.group() for token in RE_WORD.finditer(query.lower()) if token.group() not in all_stopwords]
 
