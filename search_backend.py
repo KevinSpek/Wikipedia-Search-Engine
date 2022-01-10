@@ -469,6 +469,3 @@ class Backend:
         print(evaluator.evaluate(ground_trues, predictions, 40))
 
 
-
-backend = Backend()
-backend.evaluate()
