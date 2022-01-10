@@ -8,6 +8,8 @@ import gzip
 import pandas as pd
 import numpy as np
 import math
+
+from pandas._config.config import reset_option
 from evaluation import Evaluation
 import json
 from nltk.corpus import stopwords
@@ -21,7 +23,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="wiki-retrieval-669377a04b0f.json"
 # Global indexes bucket locations
 BUCKET_POSTINGS_BODY = 'postings_body/postings_gcp'
 BUCKET_POSTINGS_STEM_BODY = 'postings_body_stem'
-BUCKET_POSTINGS_TITLE = 'postings_title/postings_gcp'
+BUCKET_POSTINGS_TITLE = 'postings_title'
 BUCKET_POSTINGS_ANCHOR = 'postings_anchor/postings_gcp'
 BUCKET_POSTINGS_ANCHOR_DOUBLE = 'postings_anchor_double/postings_gcp'
 

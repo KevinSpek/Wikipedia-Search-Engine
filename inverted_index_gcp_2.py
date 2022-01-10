@@ -57,6 +57,7 @@ class InvertedIndex:
         """ A generator that reads one posting list from disk and yields 
             a (word:str, [(doc_id:int, tf:int), ...]) tuple.
         """
+       
         if tokens is not None:
             posting_locs = []
             for token in tokens:

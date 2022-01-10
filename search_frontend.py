@@ -69,9 +69,9 @@ def search_body():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-
+    query = backend.preprocess(query)
     res, _ = backend.get_body(query)
-    res = res.iloc[:, : 100]
+    res = res.iloc[:, :20]
     res = list(res.columns)
     # END SOLUTION
     return jsonify(res)
@@ -98,7 +98,8 @@ def search_title():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    backend.get_title(query)
+    query = backend.preprocess(query)
+    res = backend.get_title(query)
     # END SOLUTION
     return jsonify(res)
 
@@ -125,7 +126,8 @@ def search_anchor():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    backend.get_anchor(query)
+    query = backend.preprocess(query)
+    res = backend.get_anchor(query)
     # END SOLUTION
     return jsonify(res)
 
@@ -178,6 +180,7 @@ def get_pageview():
     if len(wiki_ids) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
+    
     res = backend.get_page_views(wiki_ids)
 
     # END SOLUTION
