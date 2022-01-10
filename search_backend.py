@@ -15,7 +15,7 @@ from time import time as t
 import re
 import os
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/kevinspektor/University/y3s1/information-retrieval/wiki-retrieval-669377a04b0f.json"
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="wiki-retrieval-669377a04b0f.json"
 
 
 # Global indexes bucket locations
