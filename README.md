@@ -11,8 +11,8 @@ A flask app for searching relevent documents from wikipedia dumps.
 ## Docs:
 All relevent information are written in files:
 
--  search_frontend.py
--  search_backend.py
+-  `search_frontend.py`
+-  `search_backend.py`
 
 ## Data:
 
@@ -26,4 +26,4 @@ All relevent information are written in files:
 
 ## Run APP:
 
-- run command: python3 search_frontend.py
+- run command: `python3 search_frontend.py`
