@@ -5,7 +5,7 @@ A flask app for searching relevent documents from wikipedia dumps.
 ## Design goals:
 
 - Time efficiency
-- Retrieve revelnt docs
+- Retrieve relevent docs
 - Max out the mean average precision
 
 ## Docs:
